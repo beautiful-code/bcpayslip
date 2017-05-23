@@ -1,0 +1,33 @@
+package templates
+
+// Template Variables
+
+// NotfoundTemplate ...
+const NotfoundTemplate string = "templates/404.html"
+
+// LoginTemplate ...
+const LoginTemplate string = "templates/login.html"
+
+// BaseTemplate ...
+const BaseTemplate string = "templates/base.html"
+
+// HomeTemplate ...
+const HomeTemplate string = "templates/home.html"
+
+// ProfileViewTemplate ...
+const ProfileViewTemplate string = "templates/view_profile.html"
+
+// ProfileEditTemplate ...
+const ProfileEditTemplate string = "templates/edit_profile.html"
+
+// PayslipTemplate ...
+const PayslipTemplate string = "templates/payslip.html"
+
+// PayslipHistoryTemplate ...
+const PayslipHistoryTemplate string = "templates/payslip_history.html"
+
+// ApprovalsTemplate ...
+const ApprovalsTemplate string = "templates/approvals.html"
+
+// ApprovalsPayslipTemplate ...
+const ApprovalsPayslipTemplate string = "templates/approvals_payslips.html"

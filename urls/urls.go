@@ -1,0 +1,33 @@
+package urls
+
+//Define route paths to be used in routers package
+
+// StaticPath ...
+const StaticPath string = "/static/"
+
+// MediaPath ...
+const MediaPath string = "/media/"
+
+// RootPath ...
+const RootPath string = "/"
+
+// LogoutPath ...
+const LogoutPath string = "/logout"
+
+// NotfoundPath ...
+const NotfoundPath string = "/404"
+
+// AuthPath ...
+const AuthPath string = "/auth/{provider}"
+
+// AuthcallbackPath ...
+const AuthcallbackPath string = "/auth/{provider}/callback"
+
+// HomePath ...
+const HomePath string = "/home/"
+
+// PayslipPath ...
+const PayslipPath string = HomePath + "payslip/"
+
+// PayslipsPath ...
+const PayslipsPath string = HomePath + "payslips/"

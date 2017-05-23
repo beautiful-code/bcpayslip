@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<head>
+  <title> { BC } </title>
+  <link rel="stylesheet" href="/static/css/style.css" type="text/css">
+  <link rel="stylesheet" href="/static/css/materialize.min.css" type="text/css">
+  <link rel="stylesheet" href="/static/css/material.min.css" type="text/css">
+  <link rel="stylesheet" href="/static/css/dataTables.material.min.css" type="text/css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="icon" href="/static/favicon.ico" type="image/x-icon" />
+</head>
+<body class="grey lighten-2">
+  <nav>
+    <div class="nav-wrapper blue darken-1">
+      <a href="#" id="title-text" class="c-no-pointer center brand-logo">{ BC }</a>
+    </div>
+  </nav>
+  <div class="">
+    <ul id="slide-out" class="side-nav fixed">
+      <li><div class="userView">
+          <a href="/profile/{{.user.UserID}}/view/"><img class="circle" src="data:image/jpg;base64,{{.user.Avatar}}"></a>
+          <a href="#" class="c-no-pointer"><span class="blue-text name">Welcome, {{.user.FirstName}}</span></a>
+          <a href="#" class="c-no-pointer"><span class="blue-text email">{{.user.Email}}</span></a>
+        </div></li>
+        <li><a href="/logout"><i class="material-icons left">power_settings_new</i>Logout</a></li>
+    </ul>
+    <ul id="nav-mobile" class="left hide-on-med-and-down">
+      <li><a href="#!" data-activates="slide-out" class="button-collapse"><i class="material-icons">menu</i></a></li>
+    </ul>
+    <div class="row">
+      <div class="col offset-s1">
+        <div class="col s8 c-content-div c-div-scroll-hover">
+          {{ template "content" .}}
+        </div>
+      </div>
+    </div>
+    <!-- JavaScript Libraries -->
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+    <script src="/static/js/materialize.min.js"></script>
+    <!-- <script src="https://code.highcharts.com/highcharts.src.js"></script>
+    - <script src="/static/js/jquery.dataTables.min.js"></script>
+    - <script src="/static/js/dataTables.material.min.js"></script> -->
+    <script>
+$(document).ready(function (){
+  /* Data Tables Integration */
+  /* var table = $(".data-table").DataTable({
+     -   "bLengthChange": false,
+     - });
+     - $("#search").on("keyup", function () {
+     -   table.search($(this).val()).draw();
+     - }); */
+  // init datepicker
+  $('.datepicker').pickadate({
+    selectMonths: true,
+    selectYears: 5,
+    format: "yyyy-mm-dd",
+  });
+  // displaying toast message from go
+  {{ if .message }}
+  toastMessage = "{{.message}}"
+  formattedToastMessage = toastMessage.replace("{", "").replace("}", "");
+  Materialize.toast(formattedToastMessage, 4000)   {{ end }}
+
+  // Initialize collapse button
+  $(".button-collapse").sideNav();
+
+  // drop down
+  $('.dropdown-button').dropdown({
+    inDuration: 300,
+    outDuration: 225,
+    constrainWidth: false,
+    hover: true,
+    gutter: 0,
+    belowOrigin: false,
+    alignment: 'left',
+    stopPropagation: false
+  }
+  );
+
+  // Updating Form fields
+  Materialize.updateTextFields();
+
+  // get url query params
+  function getParameterByName(name, url) {
+    if (!url) {
+      url = window.location.href;
+    }
+    name = name.replace(/[\[\]]/g, "\\$&");
+    var regex = new RegExp("[?&]" + name + "(=([^&#]*)|&|#|$)"),
+      results = regex.exec(url);
+    if (!results) return null;
+    if (!results[2]) return "";
+    return decodeURIComponent(results[2].replace(/\+/g, " "));
+  }
+
+  var message = getParameterByName("m");
+  if (message != "") {
+    Materialize.toast(message, 4000);
+  }
+});
+    </script>
+    <!-- Loaging Page's partial script -->
+    {{ template "script" .}}
+</body>
+</html>
