@@ -46,5 +46,5 @@ func StartMyApp() {
 	} else {
 		port = os.Getenv("PORT")
 	}
-	http.ListenAndServe(":"+port, n)
+	http.ListenAndServe("0.0.0.0:"+port, n)
 }

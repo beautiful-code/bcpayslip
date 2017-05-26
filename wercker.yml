@@ -39,16 +39,17 @@ build:
         go get -v
 
         # Test the project
-    - script:
-      name: go test
-      code: |
-        go test -v
+    #- script:
+      #name: go test
+      #code: |
+        #go test -v
 
         # Build the project
     - script:
       name: go build
       code: |
         CGO_ENABLED=0 go build -a -ldflags '-s' -installsuffix cgo -o app .
+        chmod +x app
 
         # Create bcpayslip-deployment.json for initialization
     - script:
@@ -70,7 +71,6 @@ build:
     - internal/docker-push:
       username: $DOCKER_USERNAME
       password: $DOCKER_PASSWORD
-      cmd: bash /go/src/${MS_NAME}/app
       tag: $WERCKER_GIT_COMMIT
       ports: "3001"
       repository: priyankhub/${MS_NAME}
@@ -82,7 +82,6 @@ deploy:
       name: setup workspace dir
       code:
         export WERCKER_SOURCE_DIR="/go/src/${MS_NAME}"
-        printenv
 
     # - kubectl:
     #   server: $KUBERNETES_MASTER
@@ -98,11 +97,11 @@ deploy:
     #   insecure-skip-tls-verify: true
     #   command: create -f $MS_NAME-service.json --record
     #
-        # rolling update
+
+    ## rolling update
     - kubectl:
-      server: $KUBERNETES_MASTER
+      server: $KUBERNETES_MASTER_IP
       username: $KUBERNETES_USERNAME
       password: $KUBERNETES_PASSWORD
       insecure-skip-tls-verify: true
-      command: set image deployment $MS_NAME $MS_NAME=priyankhub/${MS_NAME}:${WERCKER_GIT_COMMIT} --record
-
+      command: set image deployment $MS_NAME $MS_NAME-webapp=priyankhub/$MS_NAME:${WERCKER_GIT_COMMIT} --record
