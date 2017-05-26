@@ -13,6 +13,7 @@ import (
 
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 // GetValidSession Returns a valid authenticated user session ...

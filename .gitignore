@@ -4,6 +4,6 @@ bcpayslip
 test.go
 media/*.*
 !media/.gitkeep
-secrets/.env
-!secrets/.gitkeep
-Test_Dockerfile
+.env
+*.env
+.wercker/

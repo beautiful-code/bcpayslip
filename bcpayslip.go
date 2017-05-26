@@ -8,6 +8,7 @@ import (
 	"bcpayslip/routers"
 
 	"github.com/gorilla/sessions"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 	"github.com/markbates/goth/providers/gplus"
@@ -25,7 +26,7 @@ func main() {
 		gplus.New(
 			os.Getenv("bc_intranet_client_id"),
 			os.Getenv("bc_intranet_client_secret"),
-			os.Getenv("bc_host")+"/auth/gplus/callback",
+			os.Getenv("bc_host")+":"+os.Getenv("PORT")+"/auth/gplus/callback",
 		),
 	)
 	// get pat router from routers package
