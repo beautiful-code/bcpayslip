@@ -13,12 +13,13 @@ import (
 
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
+	_ "github.com/joho/godotenv/autoload"
 )
 
 // GetValidSession Returns a valid authenticated user session ...
 func GetValidSession(req *http.Request) (*sessions.Session, error) {
 	sessStore := sessions.NewCookieStore([]byte(os.Getenv("bc_app_key")))
-	return sessions.Store.Get(sessStore, req, "gplus_gothic_session")
+	return sessions.Store.Get(sessStore, req, "google_gothic_session")
 }
 
 // CustomTemplateExecute Append common templates and data structs and execute template ...

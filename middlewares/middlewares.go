@@ -12,9 +12,6 @@ import (
 // GothLoginMiddleware Retreiving session, redirecting if no session found ...
 func GothLoginMiddleware(res http.ResponseWriter, req *http.Request, next http.HandlerFunc) {
 	session, _ := utils.GetValidSession(req)
-	if session.Values["gplus"] == nil {
-		http.Redirect(res, req, urls.RootPath, http.StatusSeeOther)
-	}
 	if session.Values["userid"] != nil {
 		context.Set(req, "userid", session.Values["userid"])
 	} else {

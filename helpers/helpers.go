@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"bcpayslip/models"
@@ -76,10 +77,12 @@ func GeneratePayslipPDF(payslip *models.Payslip) error {
 	pdf.SetFont("Arial", "", 10)
 	pdf.Cell(40, 10, payslip.Position)
 	pdf.SetXY(20, 60)
-	pdf.SetFont("Arial", "B", 10)
-	pdf.Cell(40, 10, "Employee No: ")
-	pdf.SetFont("Arial", "", 10)
-	pdf.Cell(40, 10, payslip.EmployeeNo)
+	if strings.Replace(payslip.EmployeeNo, " ", "", -1) != "" {
+		pdf.SetFont("Arial", "B", 10)
+		pdf.Cell(40, 10, "Employee No: ")
+		pdf.SetFont("Arial", "", 10)
+		pdf.Cell(40, 10, payslip.EmployeeNo)
+	}
 	pdf.SetXY(100, 70)
 	pdf.Line(10, 70, 200, 70)
 	pdf.Line(10, 120, 200, 120)
@@ -93,16 +96,16 @@ func GeneratePayslipPDF(payslip *models.Payslip) error {
 	pdf.SetXY(20, 80)
 	pdf.SetFont("Arial", "", 10)
 	pdf.Cell(70, 10, "Basic Salary")
-	pdf.Cell(30, 10, strconv.FormatFloat(((salary*0.6)/12), 'f', floatInt, floatType))
+	pdf.Cell(30, 10, strconv.FormatFloat((salary*0.6), 'f', floatInt, floatType))
 	pdf.SetXY(20, 90)
 	pdf.Cell(70, 10, "House Rent Allowance")
-	pdf.Cell(30, 10, strconv.FormatFloat(((salary*0.2)/12), 'f', floatInt, floatType))
+	pdf.Cell(30, 10, strconv.FormatFloat((salary*0.2), 'f', floatInt, floatType))
 	pdf.SetXY(20, 100)
 	pdf.Cell(70, 10, "Spcial / Conv Allowance")
-	pdf.Cell(30, 10, strconv.FormatFloat(((salary*0.15)/12), 'f', floatInt, floatType))
+	pdf.Cell(30, 10, strconv.FormatFloat((salary*0.15), 'f', floatInt, floatType))
 	pdf.SetXY(20, 110)
 	pdf.Cell(70, 10, "Other Allowance")
-	pdf.Cell(30, 10, strconv.FormatFloat(((salary*0.05)/12), 'f', floatInt, floatType))
+	pdf.Cell(30, 10, strconv.FormatFloat((salary*0.05), 'f', floatInt, floatType))
 	pdf.SetXY(120, 70)
 	pdf.SetFont("Arial", "B", 10)
 	pdf.Cell(40, 10, "Deductions")
@@ -110,7 +113,7 @@ func GeneratePayslipPDF(payslip *models.Payslip) error {
 	pdf.SetXY(120, 80)
 	pdf.SetFont("Arial", "", 10)
 	pdf.Cell(40, 10, "Income Tax")
-	pdf.Cell(20, 10, strconv.FormatFloat(payslip.TDS, 'f', floatInt, floatType))
+	pdf.Cell(20, 10, strconv.FormatFloat(salary-payslip.AmountReceivedBank, 'f', floatInt, floatType))
 	pdf.SetXY(120, 90)
 	pdf.Cell(40, 10, "Advance")
 	pdf.Cell(20, 10, "0.00")
@@ -140,13 +143,13 @@ func GeneratePayslipPDF(payslip *models.Payslip) error {
 	pdf.SetXY(120, 130)
 	pdf.SetFont("Arial", "", 10)
 	pdf.Cell(40, 10, "Total Gross")
-	pdf.Cell(20, 10, strconv.FormatFloat(((salary*0.6)/12), 'f', floatInt, floatType))
+	pdf.Cell(20, 10, strconv.FormatFloat((salary), 'f', floatInt, floatType))
 	pdf.SetXY(120, 140)
 	pdf.Cell(40, 10, "Deductions")
-	pdf.Cell(20, 10, strconv.FormatFloat((payslip.TDS), 'f', floatInt, floatType))
+	pdf.Cell(20, 10, strconv.FormatFloat(((salary)-payslip.AmountReceivedBank), 'f', floatInt, floatType))
 	pdf.SetXY(120, 150)
 	pdf.Cell(40, 10, "NET PAY")
-	pdf.Cell(20, 10, strconv.FormatFloat((((salary*0.6)/12)-payslip.TDS), 'f', floatInt, floatType))
+	pdf.Cell(20, 10, strconv.FormatFloat(payslip.AmountReceivedBank, 'f', floatInt, floatType))
 	pdf.SetXY(10, 160)
 	pdf.Line(10, 190, 200, 190)
 	pdf.Line(10, 160, 10, 190)
@@ -155,6 +158,6 @@ func GeneratePayslipPDF(payslip *models.Payslip) error {
 	pdf.Cell(150, 10, "(*) denotes back pay adjustment")
 	pdf.SetXY(75, 180)
 	pdf.Cell(150, 10, "Computer Generated Form does not require signature")
-	err := pdf.OutputFileAndClose("media/" + payslip.PayslipID + ".pdf")
+	err := pdf.OutputFileAndClose("media/" + payslip.UUID + ".pdf")
 	return err
 }

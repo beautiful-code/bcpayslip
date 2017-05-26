@@ -10,7 +10,7 @@ html {
 body {
     height     : 100%;
     width      : 100%;
-    overflow-y: hidden;
+    overflow-y: auto !important;
 }
 /* Word Wrap*/
 div.col {
@@ -70,7 +70,6 @@ ul.tabs {
   margin-right: 16.667% !important;
   top: 64px !important;
   bottom: 0 !important;
-  position: fixed !important;
 }
 
 .c-notification-div {

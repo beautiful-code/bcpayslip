@@ -28,7 +28,7 @@
     </ul>
     <div class="row">
       <div class="col offset-s1">
-        <div class="col s8 c-content-div c-div-scroll-hover">
+        <div class="col s8 c-content-div">
           {{ template "content" .}}
         </div>
       </div>
@@ -36,19 +36,8 @@
     <!-- JavaScript Libraries -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
     <script src="/static/js/materialize.min.js"></script>
-    <!-- <script src="https://code.highcharts.com/highcharts.src.js"></script>
-    - <script src="/static/js/jquery.dataTables.min.js"></script>
-    - <script src="/static/js/dataTables.material.min.js"></script> -->
     <script>
 $(document).ready(function (){
-  /* Data Tables Integration */
-  /* var table = $(".data-table").DataTable({
-     -   "bLengthChange": false,
-     - });
-     - $("#search").on("keyup", function () {
-     -   table.search($(this).val()).draw();
-     - }); */
-  // init datepicker
   $('.datepicker').pickadate({
     selectMonths: true,
     selectYears: 5,

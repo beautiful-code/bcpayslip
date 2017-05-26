@@ -3,14 +3,16 @@ package main
 import (
 	// system local third-party
 
+	"net/http"
 	"os"
 
 	"bcpayslip/routers"
 
 	"github.com/gorilla/sessions"
+	_ "github.com/joho/godotenv/autoload"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
-	"github.com/markbates/goth/providers/gplus"
+	"github.com/markbates/goth/providers/google"
 	"github.com/urfave/negroni"
 )
 
@@ -20,14 +22,28 @@ func init() {
 }
 
 func main() {
-	// use goth provider for authentication
-	goth.UseProviders(
-		gplus.New(
-			os.Getenv("bc_intranet_client_id"),
-			os.Getenv("bc_intranet_client_secret"),
-			os.Getenv("bc_host")+"/auth/gplus/callback",
-		),
-	)
+	StartMyApp()
+}
+
+// StartMyApp - Bootstrapped function
+func StartMyApp() {
+	if os.Getenv("bc_env") == "development" {
+		goth.UseProviders(
+			google.New(
+				os.Getenv("bc_intranet_client_id"),
+				os.Getenv("bc_intranet_client_secret"),
+				os.Getenv("bc_host")+":"+os.Getenv("PORT")+"/auth/google/callback",
+			),
+		)
+	} else {
+		goth.UseProviders(
+			google.New(
+				os.Getenv("bc_intranet_client_id"),
+				os.Getenv("bc_intranet_client_secret"),
+				os.Getenv("bc_host")+"/auth/google/callback",
+			),
+		)
+	}
 	// get pat router from routers package
 	p := routers.GetRouter()
 	// use negroni handler
@@ -40,5 +56,5 @@ func main() {
 	} else {
 		port = os.Getenv("PORT")
 	}
-	n.Run(":" + port)
+	http.ListenAndServe(":"+port, n)
 }
