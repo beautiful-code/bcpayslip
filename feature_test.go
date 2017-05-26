@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"testing"
+	"time"
 
+	_ "github.com/joho/godotenv/autoload"
 	cdp "github.com/knq/chromedp"
 )
 
@@ -37,7 +40,7 @@ func TestLoginPage(t *testing.T) {
 	c, ctxt, cancel := setup()
 	defer cancel()
 	err := c.Run(ctxt, cdp.Tasks{
-		cdp.Navigate(`http://localhost:3000`),
+		cdp.Navigate(os.Getenv("bc_test_host")),
 		cdp.WaitVisible("#google-signin", cdp.ByID),
 	})
 	if err != nil {
@@ -49,11 +52,12 @@ func TestLoginPage(t *testing.T) {
 func TestHomePage(t *testing.T) {
 	c, ctxt, cancel := setup()
 	defer cancel()
-	login := "LOGIN"
+	login := "#google-signin"
 	err := c.Run(ctxt, cdp.Tasks{
-		cdp.Navigate(`http://localhost:3000`),
+		cdp.Navigate(os.Getenv("bc_test_host")),
 		cdp.Click(login),
-		cdp.WaitVisible("#submit", cdp.ByID),
+		cdp.Sleep(2 * time.Second),
+		cdp.WaitVisible("#identifierNext", cdp.ByID),
 	})
 	if err != nil {
 		log.Fatal(err)
