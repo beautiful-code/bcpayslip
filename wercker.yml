@@ -70,7 +70,7 @@ build:
     - internal/docker-push:
       username: $DOCKER_USERNAME
       password: $DOCKER_PASSWORD
-      cmd: ./go/src/${MS_NAME}/app
+      cmd: bash /go/src/${MS_NAME}/app
       tag: $WERCKER_GIT_COMMIT
       ports: "3001"
       repository: priyankhub/${MS_NAME}
@@ -84,6 +84,20 @@ deploy:
         export WERCKER_SOURCE_DIR="/go/src/${MS_NAME}"
         printenv
 
+    # - kubectl:
+    #   server: $KUBERNETES_MASTER
+    #   username: $KUBERNETES_USERNAME
+    #   password: $KUBERNETES_PASSWORD
+    #   insecure-skip-tls-verify: true
+    #   command: create -f $MS_NAME-deployment.json --record
+    #
+    # - kubectl:
+    #   server: $KUBERNETES_MASTER
+    #   username: $KUBERNETES_USERNAME
+    #   password: $KUBERNETES_PASSWORD
+    #   insecure-skip-tls-verify: true
+    #   command: create -f $MS_NAME-service.json --record
+    #
         # rolling update
     - kubectl:
       server: $KUBERNETES_MASTER
@@ -92,16 +106,3 @@ deploy:
       insecure-skip-tls-verify: true
       command: set image deployment $MS_NAME $MS_NAME=priyankhub/${MS_NAME}:${WERCKER_GIT_COMMIT} --record
 
-    - kubectl:
-      server: $KUBERNETES_MASTER
-      username: $KUBERNETES_USERNAME
-      password: $KUBERNETES_PASSWORD
-      insecure-skip-tls-verify: true
-      command: create -f $MS_NAME-deployment.json --record
-
-    - kubectl:
-      server: $KUBERNETES_MASTER
-      username: $KUBERNETES_USERNAME
-      password: $KUBERNETES_PASSWORD
-      insecure-skip-tls-verify: true
-      command: create -f $MS_NAME-service.json --record
