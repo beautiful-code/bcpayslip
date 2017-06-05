@@ -3,6 +3,7 @@ package main
 import (
 	// system local third-party
 
+	"net/http"
 	"os"
 
 	"bcpayslip/routers"
@@ -21,6 +22,10 @@ func init() {
 }
 
 func main() {
+	StartMyApp()
+}
+
+func StartMyApp() {
 	// use goth provider for authentication
 	goth.UseProviders(
 		gplus.New(
@@ -41,5 +46,5 @@ func main() {
 	} else {
 		port = os.Getenv("PORT")
 	}
-	n.Run(":" + port)
+	http.ListenAndServe(":"+port, n)
 }
