@@ -3,7 +3,7 @@
 # If you want Google's container you would reference google/golang
 # Read more about containers on our dev center
 # http://devcenter.wercker.com/docs/containers/index.html
-box: golang:1.8
+box: google/golang
 # This is the build pipeline. Pipelines are the core of wercker
 # Read more about pipelines on our dev center
 # http://devcenter.wercker.com/docs/pipelines/index.html
@@ -22,60 +22,62 @@ build:
     # Sets the go workspace and places you package
     # at the right place in the workspace tree
     # - setup-go-workspace
-    - wercker/setup-go-workspace:
-      package-dir: github.com/wercker/setup-go-workspace
+    #- wercker/setup-go-workspace:
+      #package-dir: github.com/wercker/setup-go-workspace
 
-      # Gets the dependencies
-    - script:
-      name: APP_PATH
-      code: |
-        export WERCKER_SOURCE_DIR="/go/src/${MS_NAME}"
-        mkdir -p $WERCKER_SOURCE_DIR
-        cp -R /pipeline/source/* $WERCKER_SOURCE_DIR
-
+    # Gets the dependencies
     - script:
       name: go get
       code: |
         go get -v
 
-        # Test the project
+    # Test the project
     - script:
       name: go test
       code: |
-        go test -v
+        go test -v ./...
 
-        # Build the project
+    # Build the project
     - script:
       name: go build
-      code: |
-        CGO_ENABLED=0 go build -a -ldflags '-s' -installsuffix cgo -o app .
-        chmod +x app
+      code: CGO_ENABLED=0 go build -a -ldflags '-s' -installsuffix cgo -o app .
 
-        # Create bcpayslip-deployment.json for initialization
-    - script:
-      name: create bcpayslip-deployment.json
-      code: |
-        bash scripts/create_bcpayslip-deployment.yml.sh
+    # Create bcpayslip-deployment.json for initialization
+    #- script:
+      #name: create bcpayslip-deployment.json
+      #code: |
+        #bash scripts/create_bcpayslip-deployment.yml.sh
 
-        # Create bcpayslip-service.json for initialization
-    - script:
-      name: create bcpayslip-service.json
-      code: bash scripts/create_bcpayslip-service.json.sh
+    ## Create bcpayslip-service.json for initialization
+    #- script:
+      #name: create bcpayslip-service.json
+      #code: bash scripts/create_bcpayslip-service.json.sh
 
-      # Create env file
+    # Create env file
     - script:
       name: create env file
       code: bash scripts/app_env_vars.sh
 
-      # Create run.sh
+    ## Create run.sh
+    #- script:
+      #name: create run.sh file
+      #code: bash scripts/run.sh
+
+    # Copy binary to location that gets passed along to deploy
     - script:
-      name: create run.sh file
-      code: bash scripts/run.sh
+        name: copy binary
+        code: |
+          ls -l /go/src/app
+          mkdir -p /go/src/app
+          cp app /go/src/app
+          cp .env /go/src/app/.env
+          ls -l /go/src/app
 
     - internal/docker-push:
       username: $DOCKER_USERNAME
       password: $DOCKER_PASSWORD
       tag: $WERCKER_GIT_COMMIT
+      cmd: ./app
       ports: "3001"
       repository: priyankhub/${MS_NAME}
       registry: https://registry.hub.docker.com
