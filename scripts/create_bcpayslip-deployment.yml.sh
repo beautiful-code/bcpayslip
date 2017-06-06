@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cat > bcpayslip-deployment.yaml <<EOF
+cat > /pipeline/source/bcpayslip-deployment.yaml <<EOF
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -24,9 +24,9 @@ spec:
         - image: priyankhub/${MS_NAME}:${WERCKER_GIT_COMMIT}
           imagePullPolicy: Always
           name: ${MS_NAME}-webapp
-          command: ["./go/src/${MS_NAME}/app"]
+          command: ["/bin/bash", "/go/src/${MS_NAME}/scripts/run.sh"]
           ports:
             - containerPort: 3001
-              name: ${MS_NAME}-web-server
+              name: ${MS_NAME}-web
               protocol: TCP
 EOF

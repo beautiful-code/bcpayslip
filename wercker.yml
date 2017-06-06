@@ -39,10 +39,10 @@ build:
         go get -v
 
         # Test the project
-    #- script:
-      #name: go test
-      #code: |
-        #go test -v
+    - script:
+      name: go test
+      code: |
+        go test -v
 
         # Build the project
     - script:
@@ -67,6 +67,10 @@ build:
       name: create env file
       code: bash scripts/app_env_vars.sh
 
+      # Create run.sh
+    - script:
+      name: create run.sh file
+      code: bash scripts/run.sh
 
     - internal/docker-push:
       username: $DOCKER_USERNAME
@@ -78,27 +82,21 @@ build:
 
 deploy:
   steps:
-    - script:
-      name: setup workspace dir
-      code:
-        export WERCKER_SOURCE_DIR="/go/src/${MS_NAME}"
+    #- kubectl:
+      #server: $KUBERNETES_MASTER_IP
+      #username: $KUBERNETES_USERNAME
+      #password: $KUBERNETES_PASSWORD
+      #insecure-skip-tls-verify: true
+      #command: create -f $MS_NAME-deployment.yaml --record
 
-    # - kubectl:
-    #   server: $KUBERNETES_MASTER
-    #   username: $KUBERNETES_USERNAME
-    #   password: $KUBERNETES_PASSWORD
-    #   insecure-skip-tls-verify: true
-    #   command: create -f $MS_NAME-deployment.json --record
-    #
-    # - kubectl:
-    #   server: $KUBERNETES_MASTER
-    #   username: $KUBERNETES_USERNAME
-    #   password: $KUBERNETES_PASSWORD
-    #   insecure-skip-tls-verify: true
-    #   command: create -f $MS_NAME-service.json --record
-    #
+    #- kubectl:
+      #server: $KUBERNETES_MASTER_IP
+      #username: $KUBERNETES_USERNAME
+      #password: $KUBERNETES_PASSWORD
+      #insecure-skip-tls-verify: true
+      #command: create -f $MS_NAME-service.json --record
 
-    ## rolling update
+      ## rolling update
     - kubectl:
       server: $KUBERNETES_MASTER_IP
       username: $KUBERNETES_USERNAME

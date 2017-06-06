@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cat > bcpayslip-service.json << EOF
+cat > /pipeline/source/bcpayslip-service.json << EOF
 {
    "apiVersion": "v1",
    "kind": "Service",
@@ -15,7 +15,7 @@ cat > bcpayslip-service.json << EOF
       "ports": [
          {
            "port": 80,
-           "targetPort": "${MS_NAME}-web-server",
+           "targetPort": "${MS_NAME}-web",
            "protocol": "TCP"
          }
       ],
