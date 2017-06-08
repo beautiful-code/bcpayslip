@@ -6,7 +6,7 @@ kind: Deployment
 metadata:
   name: ${MS_NAME}
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
