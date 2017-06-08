@@ -101,9 +101,9 @@ deploy:
     #
 
     ## rolling update
-    - kubectl:
-      server: $KUBERNETES_MASTER_IP
-      username: $KUBERNETES_USERNAME
-      password: $KUBERNETES_PASSWORD
-      insecure-skip-tls-verify: true
-      command: set image deployment $MS_NAME $MS_NAME-webapp=priyankhub/$MS_NAME:${WERCKER_GIT_COMMIT} --record
+    # - kubectl:
+    #   server: $KUBERNETES_MASTER_IP
+    #   username: $KUBERNETES_USERNAME
+    #   password: $KUBERNETES_PASSWORD
+    #   insecure-skip-tls-verify: true
+    #   command: set image deployment $MS_NAME $MS_NAME-webapp=priyankhub/$MS_NAME:${WERCKER_GIT_COMMIT} --record
