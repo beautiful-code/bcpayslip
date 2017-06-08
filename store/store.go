@@ -18,7 +18,7 @@ func GetSession(collection string, pk string) *mgo.Session {
 	if os.Getenv("bc_env") == "development" {
 		session, err = mgo.Dial("localhost")
 	} else {
-		session, err = mgo.Dial(os.Getenv("bc_ip"))
+		session, err = mgo.Dial(os.Getenv("MONGO_URI"))
 	}
 	if err != nil {
 		panic(err)
