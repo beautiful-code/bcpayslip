@@ -23,7 +23,7 @@ spec:
       containers:
         - image: priyankhub/${MS_NAME}:${WERCKER_GIT_COMMIT}
           imagePullPolicy: Always
-          name: ${MS_NAME}-webapp
+          name: ${MS_NAME}
           command: ["/go/src/${MS_NAME}/bcpayslip"]
           ports:
             - containerPort: 3001
