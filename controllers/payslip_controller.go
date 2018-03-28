@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/context"
 	"github.com/gorilla/schema"
+	uuid "github.com/satori/go.uuid"
 )
 
 // PayslipController ...
@@ -38,7 +39,9 @@ func PayslipController(res http.ResponseWriter, req *http.Request) {
 		payslip.RequestedOn = time.Now()
 		payslip.Status = 0
 		payslip.PayslipID = user.UserID
+		uuidNew := uuid.Must(uuid.NewV4())
+		payslip.UUID = uuidNew.String()
 		helpers.GeneratePayslipPDF(payslip)
-		http.Redirect(res, req, "/media/"+payslip.PayslipID+".pdf", http.StatusSeeOther)
+		http.Redirect(res, req, "/media/"+payslip.UUID+".pdf", http.StatusSeeOther)
 	}
 }

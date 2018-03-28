@@ -158,6 +158,6 @@ func GeneratePayslipPDF(payslip *models.Payslip) error {
 	pdf.Cell(150, 10, "(*) denotes back pay adjustment")
 	pdf.SetXY(75, 180)
 	pdf.Cell(150, 10, "Computer Generated Form does not require signature")
-	err := pdf.OutputFileAndClose("media/" + payslip.PayslipID + ".pdf")
+	err := pdf.OutputFileAndClose("media/" + payslip.UUID + ".pdf")
 	return err
 }

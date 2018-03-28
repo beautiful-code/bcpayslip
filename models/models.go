@@ -38,5 +38,6 @@ type (
 		Position           string    `json:"position"`
 		EmployeeNo         string    `json:"employeeno"`
 		Status             int       `json:"status"`
+		UUID               string    `json:"string"`
 	}
 )
