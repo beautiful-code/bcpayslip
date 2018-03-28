@@ -70,7 +70,7 @@ build:
       cmd: /go/src/bcpayslip/bcpayslip
       ports: "3001"
       repository: priyankhub/bcpayslip
-      registry: https://registry.hub.docker.com
+      registry: https://registry.hub.docker.com/v2
       working-dir: /go/src/bcpayslip
 
 deploy:
