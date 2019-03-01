@@ -2,27 +2,29 @@ package chromedp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
-	"runtime"
+	goruntime "runtime"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mailru/easyjson"
 
-	"github.com/knq/chromedp/cdp"
-	"github.com/knq/chromedp/cdp/cdputil"
-	"github.com/knq/chromedp/cdp/css"
-	"github.com/knq/chromedp/cdp/dom"
-	"github.com/knq/chromedp/cdp/inspector"
-	logdom "github.com/knq/chromedp/cdp/log"
-	"github.com/knq/chromedp/cdp/page"
-	rundom "github.com/knq/chromedp/cdp/runtime"
-	"github.com/knq/chromedp/client"
+	"github.com/chromedp/cdproto"
+	"github.com/chromedp/cdproto/cdp"
+	"github.com/chromedp/cdproto/css"
+	"github.com/chromedp/cdproto/dom"
+	"github.com/chromedp/cdproto/inspector"
+	"github.com/chromedp/cdproto/log"
+	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/cdproto/runtime"
+
+	"github.com/chromedp/chromedp/client"
 )
 
-// TargetHandler manages a Chrome Debugging Protocol target.
+// TargetHandler manages a Chrome DevTools Protocol target.
 type TargetHandler struct {
 	conn client.Transport
 
@@ -33,13 +35,13 @@ type TargetHandler struct {
 	cur *cdp.Frame
 
 	// qcmd is the outgoing message queue.
-	qcmd chan *cdp.Message
+	qcmd chan *cdproto.Message
 
 	// qres is the incoming command result queue.
-	qres chan *cdp.Message
+	qres chan *cdproto.Message
 
 	// qevents is the incoming event queue.
-	qevents chan *cdp.Message
+	qevents chan *cdproto.Message
 
 	// detached is closed when the detached event is received.
 	detached chan *inspector.EventDetached
@@ -51,18 +53,18 @@ type TargetHandler struct {
 	lastm sync.Mutex
 
 	// res is the id->result channel map.
-	res   map[int64]chan *cdp.Message
+	res   map[int64]chan *cdproto.Message
 	resrw sync.RWMutex
 
 	// logging funcs
-	logf, debugf, errorf LogFunc
+	logf, debugf, errf func(string, ...interface{})
 
 	sync.RWMutex
 }
 
 // NewTargetHandler creates a new handler for the specified client target.
-func NewTargetHandler(t client.Target, logf, debugf, errorf LogFunc) (*TargetHandler, error) {
-	conn, err := client.Dial(t)
+func NewTargetHandler(t client.Target, logf, debugf, errf func(string, ...interface{})) (*TargetHandler, error) {
+	conn, err := client.Dial(t.GetWebsocketURL())
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +73,7 @@ func NewTargetHandler(t client.Target, logf, debugf, errorf LogFunc) (*TargetHan
 		conn:   conn,
 		logf:   logf,
 		debugf: debugf,
-		errorf: errorf,
+		errf:   errf,
 	}, nil
 }
 
@@ -80,16 +82,14 @@ func NewTargetHandler(t client.Target, logf, debugf, errorf LogFunc) (*TargetHan
 //
 // Callers can stop Run by closing the passed context.
 func (h *TargetHandler) Run(ctxt context.Context) error {
-	var err error
-
 	// reset
 	h.Lock()
 	h.frames = make(map[cdp.FrameID]*cdp.Frame)
-	h.qcmd = make(chan *cdp.Message)
-	h.qres = make(chan *cdp.Message)
-	h.qevents = make(chan *cdp.Message)
-	h.res = make(map[int64]chan *cdp.Message)
-	h.detached = make(chan *inspector.EventDetached)
+	h.qcmd = make(chan *cdproto.Message)
+	h.qres = make(chan *cdproto.Message)
+	h.qevents = make(chan *cdproto.Message)
+	h.res = make(map[int64]chan *cdproto.Message)
+	h.detached = make(chan *inspector.EventDetached, 1)
 	h.pageWaitGroup = new(sync.WaitGroup)
 	h.domWaitGroup = new(sync.WaitGroup)
 	h.Unlock()
@@ -99,16 +99,15 @@ func (h *TargetHandler) Run(ctxt context.Context) error {
 
 	// enable domains
 	for _, a := range []Action{
-		logdom.Enable(),
-		rundom.Enable(),
+		log.Enable(),
+		runtime.Enable(),
 		//network.Enable(),
 		inspector.Enable(),
 		page.Enable(),
 		dom.Enable(),
 		css.Enable(),
 	} {
-		err = a.Do(ctxt, h)
-		if err != nil {
+		if err := a.Do(ctxt, h); err != nil {
 			return fmt.Errorf("unable to execute %s: %v", reflect.TypeOf(a), err)
 		}
 	}
@@ -162,7 +161,7 @@ func (h *TargetHandler) run(ctxt context.Context) {
 					h.qres <- msg
 
 				default:
-					h.errorf("ignoring malformed incoming message (missing id or method): %#v", msg)
+					h.errf("ignoring malformed incoming message (missing id or method): %#v", msg)
 				}
 
 			case <-h.detached:
@@ -175,27 +174,25 @@ func (h *TargetHandler) run(ctxt context.Context) {
 		}
 	}()
 
-	var err error
-
 	// process queues
 	for {
 		select {
 		case ev := <-h.qevents:
-			err = h.processEvent(ctxt, ev)
+			err := h.processEvent(ctxt, ev)
 			if err != nil {
-				h.errorf("could not process event %s: %v", ev.Method, err)
+				h.errf("could not process event %s: %v", ev.Method, err)
 			}
 
 		case res := <-h.qres:
-			err = h.processResult(res)
+			err := h.processResult(res)
 			if err != nil {
-				h.errorf("could not process result for message %d: %v", res.ID, err)
+				h.errf("could not process result for message %d: %v", res.ID, err)
 			}
 
 		case cmd := <-h.qcmd:
-			err = h.processCommand(cmd)
+			err := h.processCommand(cmd)
 			if err != nil {
-				h.errorf("could not process command message %d: %v", cmd.ID, err)
+				h.errf("could not process command message %d: %v", cmd.ID, err)
 			}
 
 		case <-ctxt.Done():
@@ -205,7 +202,7 @@ func (h *TargetHandler) run(ctxt context.Context) {
 }
 
 // read reads a message from the client connection.
-func (h *TargetHandler) read() (*cdp.Message, error) {
+func (h *TargetHandler) read() (*cdproto.Message, error) {
 	// read
 	buf, err := h.conn.Read()
 	if err != nil {
@@ -215,8 +212,8 @@ func (h *TargetHandler) read() (*cdp.Message, error) {
 	h.debugf("-> %s", string(buf))
 
 	// unmarshal
-	msg := new(cdp.Message)
-	err = easyjson.Unmarshal(buf, msg)
+	msg := new(cdproto.Message)
+	err = json.Unmarshal(buf, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -225,13 +222,13 @@ func (h *TargetHandler) read() (*cdp.Message, error) {
 }
 
 // processEvent processes an incoming event.
-func (h *TargetHandler) processEvent(ctxt context.Context, msg *cdp.Message) error {
+func (h *TargetHandler) processEvent(ctxt context.Context, msg *cdproto.Message) error {
 	if msg == nil {
-		return cdp.ErrChannelClosed
+		return ErrChannelClosed
 	}
 
 	// unmarshal
-	ev, err := cdputil.UnmarshalMessage(msg)
+	ev, err := cdproto.UnmarshalMessage(msg)
 	if err != nil {
 		return err
 	}
@@ -272,7 +269,7 @@ func (h *TargetHandler) processEvent(ctxt context.Context, msg *cdp.Message) err
 func (h *TargetHandler) documentUpdated(ctxt context.Context) {
 	f, err := h.WaitFrame(ctxt, cdp.EmptyFrameID)
 	if err != nil {
-		h.errorf("could not get current frame: %v", err)
+		h.errf("could not get current frame: %v", err)
 		return
 	}
 
@@ -287,7 +284,7 @@ func (h *TargetHandler) documentUpdated(ctxt context.Context) {
 	f.Nodes = make(map[cdp.NodeID]*cdp.Node)
 	f.Root, err = dom.GetDocument().WithPierce(true).Do(ctxt, h)
 	if err != nil {
-		h.errorf("could not retrieve document root for %s: %v", f.ID, err)
+		h.errf("could not retrieve document root for %s: %v", f.ID, err)
 		return
 	}
 	f.Root.Invalidated = make(chan struct{})
@@ -295,7 +292,7 @@ func (h *TargetHandler) documentUpdated(ctxt context.Context) {
 }
 
 // processResult processes an incoming command result.
-func (h *TargetHandler) processResult(msg *cdp.Message) error {
+func (h *TargetHandler) processResult(msg *cdproto.Message) error {
 	h.resrw.RLock()
 	defer h.resrw.RUnlock()
 
@@ -311,9 +308,9 @@ func (h *TargetHandler) processResult(msg *cdp.Message) error {
 }
 
 // processCommand writes a command to the client connection.
-func (h *TargetHandler) processCommand(cmd *cdp.Message) error {
+func (h *TargetHandler) processCommand(cmd *cdproto.Message) error {
 	// marshal
-	buf, err := easyjson.Marshal(cmd)
+	buf, err := json.Marshal(cmd)
 	if err != nil {
 		return err
 	}
@@ -328,13 +325,13 @@ var emptyObj = easyjson.RawMessage([]byte(`{}`))
 
 // Execute executes commandType against the endpoint passed to Run, using the
 // provided context and params, decoding the result of the command to res.
-func (h *TargetHandler) Execute(ctxt context.Context, commandType cdp.MethodType, params easyjson.Marshaler, res easyjson.Unmarshaler) error {
+func (h *TargetHandler) Execute(ctxt context.Context, methodType string, params json.Marshaler, res json.Unmarshaler) error {
 	var paramsBuf easyjson.RawMessage
 	if params == nil {
 		paramsBuf = emptyObj
 	} else {
 		var err error
-		paramsBuf, err = easyjson.Marshal(params)
+		paramsBuf, err = json.Marshal(params)
 		if err != nil {
 			return err
 		}
@@ -343,15 +340,15 @@ func (h *TargetHandler) Execute(ctxt context.Context, commandType cdp.MethodType
 	id := h.next()
 
 	// save channel
-	ch := make(chan *cdp.Message, 1)
+	ch := make(chan *cdproto.Message, 1)
 	h.resrw.Lock()
 	h.res[id] = ch
 	h.resrw.Unlock()
 
 	// queue message
-	h.qcmd <- &cdp.Message{
+	h.qcmd <- &cdproto.Message{
 		ID:     id,
-		Method: commandType,
+		Method: cdproto.MethodType(methodType),
 		Params: paramsBuf,
 	}
 
@@ -363,13 +360,13 @@ func (h *TargetHandler) Execute(ctxt context.Context, commandType cdp.MethodType
 		case msg := <-ch:
 			switch {
 			case msg == nil:
-				errch <- cdp.ErrChannelClosed
+				errch <- ErrChannelClosed
 
 			case msg.Error != nil:
 				errch <- msg.Error
 
 			case res != nil:
-				errch <- easyjson.Unmarshal(msg.Result, res)
+				errch <- json.Unmarshal(msg.Result, res)
 			}
 
 		case <-ctxt.Done():
@@ -395,13 +392,8 @@ func (h *TargetHandler) next() int64 {
 
 // GetRoot returns the current top level frame's root document node.
 func (h *TargetHandler) GetRoot(ctxt context.Context) (*cdp.Node, error) {
-	// TODO: fix this
-	ctxt, cancel := context.WithTimeout(ctxt, 10*time.Second)
-	defer cancel()
-
 	var root *cdp.Node
 
-loop:
 	for {
 		var cur *cdp.Frame
 		select {
@@ -416,7 +408,7 @@ loop:
 			h.RUnlock()
 
 			if cur != nil && root != nil {
-				break loop
+				return root, nil
 			}
 
 			time.Sleep(DefaultCheckDuration)
@@ -425,8 +417,6 @@ loop:
 			return nil, ctxt.Err()
 		}
 	}
-
-	return root, nil
 }
 
 // SetActive sets the currently active frame after a successful navigation.
@@ -452,7 +442,6 @@ func (h *TargetHandler) WaitFrame(ctxt context.Context, id cdp.FrameID) (*cdp.Fr
 	// TODO: fix this
 	timeout := time.After(10 * time.Second)
 
-loop:
 	for {
 		select {
 		default:
@@ -477,11 +466,9 @@ loop:
 			return nil, ctxt.Err()
 
 		case <-timeout:
-			break loop
+			return nil, fmt.Errorf("timeout waiting for frame `%s`", id)
 		}
 	}
-
-	return nil, fmt.Errorf("timeout waiting for frame `%s`", id)
 }
 
 // WaitNode waits for a node to be loaded using the provided context.
@@ -489,7 +476,6 @@ func (h *TargetHandler) WaitNode(ctxt context.Context, f *cdp.Frame, id cdp.Node
 	// TODO: fix this
 	timeout := time.After(10 * time.Second)
 
-loop:
 	for {
 		select {
 		default:
@@ -510,11 +496,9 @@ loop:
 			return nil, ctxt.Err()
 
 		case <-timeout:
-			break loop
+			return nil, fmt.Errorf("timeout waiting for node `%d`", id)
 		}
 	}
-
-	return nil, fmt.Errorf("timeout waiting for node `%d`", id)
 }
 
 // pageEvent handles incoming page events.
@@ -528,6 +512,9 @@ func (h *TargetHandler) pageEvent(ctxt context.Context, ev interface{}) {
 	case *page.EventFrameNavigated:
 		h.Lock()
 		h.frames[e.Frame.ID] = e.Frame
+		if h.cur != nil && h.cur.ID == e.Frame.ID {
+			h.cur = e.Frame
+		}
 		h.Unlock()
 		return
 
@@ -549,21 +536,24 @@ func (h *TargetHandler) pageEvent(ctxt context.Context, ev interface{}) {
 	case *page.EventFrameClearedScheduledNavigation:
 		id, op = e.FrameID, frameClearedScheduledNavigation
 
+		// ignored events
 	case *page.EventDomContentEventFired:
 		return
 	case *page.EventLoadEventFired:
 		return
 	case *page.EventFrameResized:
 		return
+	case *page.EventLifecycleEvent:
+		return
 
 	default:
-		h.errorf("unhandled page event %s", reflect.TypeOf(ev))
+		h.errf("unhandled page event %s", reflect.TypeOf(ev))
 		return
 	}
 
 	f, err := h.WaitFrame(ctxt, id)
 	if err != nil {
-		h.errorf("could not get frame %s: %v", id, err)
+		h.errf("could not get frame %s: %v", id, err)
 		return
 	}
 
@@ -583,7 +573,7 @@ func (h *TargetHandler) domEvent(ctxt context.Context, ev interface{}) {
 	// wait current frame
 	f, err := h.WaitFrame(ctxt, cdp.EmptyFrameID)
 	if err != nil {
-		h.errorf("could not process DOM event %s: %v", reflect.TypeOf(ev), err)
+		h.errf("could not process DOM event %s: %v", reflect.TypeOf(ev), err)
 		return
 	}
 
@@ -641,19 +631,19 @@ func (h *TargetHandler) domEvent(ctxt context.Context, ev interface{}) {
 		id, op = e.InsertionPointID, distributedNodesUpdated(e.DistributedNodes)
 
 	default:
-		h.errorf("unhandled node event %s", reflect.TypeOf(ev))
+		h.errf("unhandled node event %s", reflect.TypeOf(ev))
 		return
 	}
 
 	// retrieve node
 	n, err := h.WaitNode(ctxt, f, id)
 	if err != nil {
-		s := strings.TrimSuffix(runtime.FuncForPC(reflect.ValueOf(op).Pointer()).Name(), ".func1")
+		s := strings.TrimSuffix(goruntime.FuncForPC(reflect.ValueOf(op).Pointer()).Name(), ".func1")
 		i := strings.LastIndex(s, ".")
 		if i != -1 {
 			s = s[i+1:]
 		}
-		h.errorf("could not perform (%s) operation on node %d (wait node): %v", s, id, err)
+		h.errf("could not perform (%s) operation on node %d (wait node): %v", s, id, err)
 		return
 	}
 
@@ -664,14 +654,4 @@ func (h *TargetHandler) domEvent(ctxt context.Context, ev interface{}) {
 	defer f.Unlock()
 
 	op(n)
-}
-
-// Listen creates a listener for the specified event types.
-func (h *TargetHandler) Listen(eventTypes ...cdp.MethodType) <-chan interface{} {
-	return nil
-}
-
-// Release releases a channel returned from Listen.
-func (h *TargetHandler) Release(ch <-chan interface{}) {
-
 }

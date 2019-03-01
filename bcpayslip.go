@@ -12,7 +12,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
-	"github.com/markbates/goth/providers/gplus"
+	"github.com/markbates/goth/providers/google"
 	"github.com/urfave/negroni"
 )
 
@@ -25,22 +25,22 @@ func main() {
 	StartMyApp()
 }
 
+// StartMyApp - Bootstrapped function
 func StartMyApp() {
-	// use goth provider for authentication
 	if os.Getenv("bc_env") == "development" {
 		goth.UseProviders(
-			gplus.New(
+			google.New(
 				os.Getenv("bc_intranet_client_id"),
 				os.Getenv("bc_intranet_client_secret"),
-				os.Getenv("bc_host")+":"+os.Getenv("PORT")+"/auth/gplus/callback",
+				os.Getenv("bc_host")+":"+os.Getenv("PORT")+"/auth/google/callback",
 			),
 		)
 	} else {
 		goth.UseProviders(
-			gplus.New(
+			google.New(
 				os.Getenv("bc_intranet_client_id"),
 				os.Getenv("bc_intranet_client_secret"),
-				os.Getenv("bc_host")+"/auth/gplus/callback",
+				os.Getenv("bc_host")+"/auth/google/callback",
 			),
 		)
 	}

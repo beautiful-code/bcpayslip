@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"sync"
 
-	"github.com/knq/chromedp/runner"
+	"github.com/chromedp/chromedp/runner"
 )
 
 // Pool manages a pool of running Chrome processes.
@@ -21,33 +22,35 @@ type Pool struct {
 	res map[int]*Res
 
 	// logging funcs
-	logf, debugf, errorf LogFunc
+	logf, debugf, errf func(string, ...interface{})
 
 	rw sync.RWMutex
 }
 
 // NewPool creates a new Chrome runner pool.
 func NewPool(opts ...PoolOption) (*Pool, error) {
-	var err error
-
 	p := &Pool{
 		start:  DefaultPoolStartPort,
 		end:    DefaultPoolEndPort,
 		res:    make(map[int]*Res),
 		logf:   log.Printf,
 		debugf: func(string, ...interface{}) {},
-		errorf: func(s string, v ...interface{}) { log.Printf("error: "+s, v...) },
 	}
 
 	// apply opts
 	for _, o := range opts {
-		err = o(p)
-		if err != nil {
+		if err := o(p); err != nil {
 			return nil, err
 		}
 	}
 
-	return p, err
+	if p.errf == nil {
+		p.errf = func(s string, v ...interface{}) {
+			p.logf("ERROR: "+s, v...)
+		}
+	}
+
+	return p, nil
 }
 
 // Shutdown releases all the pool resources.
@@ -68,15 +71,31 @@ func (p *Pool) Allocate(ctxt context.Context, opts ...runner.CommandLineOption) 
 
 	r := p.next(ctxt)
 
+	// Check if the port is available first. If it's not, Chrome will print
+	// an "address already in use" error, but it will otherwise keep
+	// running. This can lead to Allocate succeeding, while the chrome
+	// process isn't actually listening on the port we need.
+	l, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", r.port))
+	if err != nil {
+		// we can't use this port, e.g. address already in use
+		p.errf("pool could not allocate runner on port %d: %v", r.port, err)
+		return nil, err
+	}
+	l.Close()
+
 	p.debugf("pool allocating %d", r.port)
 
 	// create runner
 	r.r, err = runner.New(append([]runner.CommandLineOption{
-		runner.Headless("", r.port),
+		runner.ExecPath(runner.LookChromeNames("headless_shell")),
+		runner.RemoteDebuggingPort(r.port),
+		runner.NoDefaultBrowserCheck,
+		runner.NoFirstRun,
+		runner.Headless,
 	}, opts...)...)
 	if err != nil {
 		defer r.Release()
-		p.errorf("pool could not allocate runner on port %d: %v", r.port, err)
+		p.errf("pool could not allocate runner on port %d: %v", r.port, err)
 		return nil, err
 	}
 
@@ -84,18 +103,18 @@ func (p *Pool) Allocate(ctxt context.Context, opts ...runner.CommandLineOption) 
 	err = r.r.Start(r.ctxt)
 	if err != nil {
 		defer r.Release()
-		p.errorf("pool could not start runner on port %d: %v", r.port, err)
+		p.errf("pool could not start runner on port %d: %v", r.port, err)
 		return nil, err
 	}
 
 	// setup cdp
 	r.c, err = New(
 		r.ctxt, WithRunner(r.r),
-		WithLogf(p.logf), WithDebugf(p.debugf), WithErrorf(p.errorf),
+		WithLogf(p.logf), WithDebugf(p.debugf), WithErrorf(p.errf),
 	)
 	if err != nil {
 		defer r.Release()
-		p.errorf("pool could not connect to %d: %v", r.port, err)
+		p.errf("pool could not connect to %d: %v", r.port, err)
 		return nil, err
 	}
 
@@ -192,11 +211,9 @@ func PortRange(start, end int) PoolOption {
 }
 
 // PoolLog is a pool option to set the logging to use for the pool.
-func PoolLog(logf, debugf, errorf LogFunc) PoolOption {
+func PoolLog(logf, debugf, errf func(string, ...interface{})) PoolOption {
 	return func(p *Pool) error {
-		p.logf = logf
-		p.debugf = debugf
-		p.errorf = errorf
+		p.logf, p.debugf, p.errf = logf, debugf, errf
 		return nil
 	}
 }

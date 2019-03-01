@@ -6,7 +6,6 @@ import (
 	"bcpayslip/helpers"
 	"bcpayslip/models"
 
-	_ "github.com/joho/godotenv/autoload"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -16,7 +15,7 @@ func GetSession(collection string, pk string) *mgo.Session {
 	var session *mgo.Session
 	var err error
 	if os.Getenv("bc_env") == "development" {
-		session, err = mgo.Dial("localhost")
+		session, err = mgo.Dial("127.0.0.1")
 	} else {
 		session, err = mgo.Dial(os.Getenv("MONGO_URI"))
 	}

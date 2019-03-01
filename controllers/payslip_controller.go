@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -31,7 +30,6 @@ func PayslipController(res http.ResponseWriter, req *http.Request) {
 		decoder.RegisterConverter(time.Time{}, helpers.ConvertFormDate)
 		err = decoder.Decode(payslip, req.Form)
 		if err != nil {
-			fmt.Println(err)
 			http.Redirect(res, req, urls.HomePath, http.StatusSeeOther)
 		}
 		user, _ := store.GetUser(context.Get(req, "userid").(string))
@@ -39,7 +37,7 @@ func PayslipController(res http.ResponseWriter, req *http.Request) {
 		payslip.RequestedOn = time.Now()
 		payslip.Status = 0
 		payslip.PayslipID = user.UserID
-		uuidNew := uuid.Must(uuid.NewV4())
+		uuidNew := uuid.Must(uuid.NewV4(), nil)
 		payslip.UUID = uuidNew.String()
 		helpers.GeneratePayslipPDF(payslip)
 		http.Redirect(res, req, "/media/"+payslip.UUID+".pdf", http.StatusSeeOther)

@@ -30,7 +30,7 @@
         </div>
         <div class="input-field col s12">
           <input id="salary" name="GrossAnnualSalary" type="number" class="validate" required>
-          <label class="active" for="salary">Gross Monthly Salary</label>
+          <label class="active" for="salary">Gross Monthly Salary (Annual Salary / 12)</label>
         </div>
         <div class="input-field col s12">
           <input id="amount" name="AmountReceivedBank" type="number" class="validate" required>
@@ -42,7 +42,7 @@
         </div> -->
         <div class="input-field col s12">
           <input id="employeeno" name="EmployeeNo" type="text" class="validate">
-          <label class="active" for="employeeno">Employee Number</label>
+          <label class="active" for="employeeno">Employee Number (Check your ID card)</label>
         </div>
         <div class="input-field col s12">
           <input id="position" name="Position" type="text" class="validate" required>
@@ -59,7 +59,7 @@
 {{ define "script" }}
 <script>
 $(document).ready(function (){
-  $('#title-text').text('{ Payslips }');
+  $('#title-text').text(' Payslip Generator ');
   $(".datepicker").pickadate({
     selectMonths: true,
     selectYears: 5,

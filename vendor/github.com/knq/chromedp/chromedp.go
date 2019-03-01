@@ -1,3 +1,9 @@
+// Package chromedp is a high level Chrome DevTools Protocol client that
+// simplifies driving browsers for scraping, unit testing, or profiling web
+// pages using the CDP.
+//
+// chromedp requires no third-party dependencies, implementing the async Chrome
+// DevTools Protocol entirely in Go.
 package chromedp
 
 import (
@@ -8,13 +14,30 @@ import (
 	"sync"
 	"time"
 
-	"github.com/knq/chromedp/cdp"
-	"github.com/knq/chromedp/client"
-	"github.com/knq/chromedp/runner"
+	"github.com/chromedp/cdproto/cdp"
+
+	"github.com/chromedp/chromedp/client"
+	"github.com/chromedp/chromedp/runner"
 )
 
-// CDP contains information for managing a Chrome process runner, low level
-// JSON and websocket client, and associated network, page, and DOM handling.
+const (
+	// DefaultNewTargetTimeout is the default time to wait for a new target to
+	// be started.
+	DefaultNewTargetTimeout = 3 * time.Second
+
+	// DefaultCheckDuration is the default time to sleep between a check.
+	DefaultCheckDuration = 50 * time.Millisecond
+
+	// DefaultPoolStartPort is the default start port number.
+	DefaultPoolStartPort = 9000
+
+	// DefaultPoolEndPort is the default end port number.
+	DefaultPoolEndPort = 10000
+)
+
+// CDP is the high-level Chrome DevTools Protocol browser manager, handling the
+// browser process runner, WebSocket clients, associated targets, and network,
+// page, and DOM events.
 type CDP struct {
 	// r is the chrome runner.
 	r *runner.Runner
@@ -26,7 +49,7 @@ type CDP struct {
 	watch <-chan client.Target
 
 	// cur is the current active target's handler.
-	cur cdp.Handler
+	cur cdp.Executor
 
 	// handlers is the active handlers.
 	handlers []*TargetHandler
@@ -35,33 +58,31 @@ type CDP struct {
 	handlerMap map[string]int
 
 	// logging funcs
-	logf, debugf, errorf LogFunc
+	logf, debugf, errf func(string, ...interface{})
 
 	sync.RWMutex
 }
 
 // New creates and starts a new CDP instance.
 func New(ctxt context.Context, opts ...Option) (*CDP, error) {
-	var err error
-
 	c := &CDP{
 		handlers:   make([]*TargetHandler, 0),
 		handlerMap: make(map[string]int),
 		logf:       log.Printf,
 		debugf:     func(string, ...interface{}) {},
-		errorf:     func(s string, v ...interface{}) { log.Printf("error: "+s, v...) },
+		errf:       func(s string, v ...interface{}) { log.Printf("error: "+s, v...) },
 	}
 
 	// apply options
 	for _, o := range opts {
-		err = o(c)
-		if err != nil {
+		if err := o(c); err != nil {
 			return nil, err
 		}
 	}
 
 	// check for supplied runner, if none then create one
 	if c.r == nil && c.watch == nil {
+		var err error
 		c.r, err = runner.Run(ctxt, c.opts...)
 		if err != nil {
 			return nil, err
@@ -70,7 +91,7 @@ func New(ctxt context.Context, opts ...Option) (*CDP, error) {
 
 	// watch handlers
 	if c.watch == nil {
-		c.watch = c.r.WatchPageTargets(ctxt)
+		c.watch = c.r.Client().WatchPageTargets(ctxt)
 	}
 
 	go func() {
@@ -83,9 +104,8 @@ func New(ctxt context.Context, opts ...Option) (*CDP, error) {
 	}()
 
 	// TODO: fix this
-	timeout := time.After(DefaultNewTargetTimeout)
+	timeout := time.After(defaultNewTargetTimeout)
 
-loop:
 	// wait until at least one target active
 	for {
 		select {
@@ -104,11 +124,9 @@ loop:
 			return nil, ctxt.Err()
 
 		case <-timeout:
-			break loop
+			return nil, errors.New("timeout waiting for initial target")
 		}
 	}
-
-	return nil, errors.New("timeout waiting for initial target")
 }
 
 // AddTarget adds a target using the supplied context.
@@ -117,16 +135,15 @@ func (c *CDP) AddTarget(ctxt context.Context, t client.Target) {
 	defer c.Unlock()
 
 	// create target manager
-	h, err := NewTargetHandler(t, c.logf, c.debugf, c.errorf)
+	h, err := NewTargetHandler(t, c.logf, c.debugf, c.errf)
 	if err != nil {
-		c.errorf("could not create handler for %s: %v", t, err)
+		c.errf("could not create handler for %s: %v", t, err)
 		return
 	}
 
 	// run
-	err = h.Run(ctxt)
-	if err != nil {
-		c.errorf("could not start handler for %s: %v", t, err)
+	if err := h.Run(ctxt); err != nil {
+		c.errf("could not start handler for %s: %v", t, err)
 		return
 	}
 
@@ -178,7 +195,7 @@ func (c *CDP) ListTargets() []string {
 }
 
 // GetHandlerByIndex retrieves the domains manager for the specified index.
-func (c *CDP) GetHandlerByIndex(i int) cdp.Handler {
+func (c *CDP) GetHandlerByIndex(i int) cdp.Executor {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -190,7 +207,7 @@ func (c *CDP) GetHandlerByIndex(i int) cdp.Handler {
 }
 
 // GetHandlerByID retrieves the domains manager for the specified target ID.
-func (c *CDP) GetHandlerByID(id string) cdp.Handler {
+func (c *CDP) GetHandlerByID(id string) cdp.Executor {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -222,6 +239,7 @@ func (c *CDP) SetHandlerByID(id string) error {
 
 	if i, ok := c.handlerMap[id]; ok {
 		c.cur = c.handlers[i]
+		return nil
 	}
 
 	return fmt.Errorf("no handler associated with target id %s", id)
@@ -243,7 +261,6 @@ func (c *CDP) newTarget(ctxt context.Context, opts ...client.Option) (string, er
 
 	timeout := time.After(DefaultNewTargetTimeout)
 
-loop:
 	for {
 		select {
 		default:
@@ -262,17 +279,15 @@ loop:
 			return "", ctxt.Err()
 
 		case <-timeout:
-			break loop
+			return "", errors.New("timeout waiting for new target to be available")
 		}
 	}
-
-	return "", errors.New("timeout waiting for new target to be available")
 }
 
 // SetTarget is an action that sets the active Chrome handler to the specified
 // index i.
 func (c *CDP) SetTarget(i int) Action {
-	return ActionFunc(func(context.Context, cdp.Handler) error {
+	return ActionFunc(func(context.Context, cdp.Executor) error {
 		return c.SetHandler(i)
 	})
 }
@@ -280,7 +295,7 @@ func (c *CDP) SetTarget(i int) Action {
 // SetTargetByID is an action that sets the active Chrome handler to the handler
 // associated with the specified id.
 func (c *CDP) SetTargetByID(id string) Action {
-	return ActionFunc(func(context.Context, cdp.Handler) error {
+	return ActionFunc(func(context.Context, cdp.Executor) error {
 		return c.SetHandlerByID(id)
 	})
 }
@@ -288,7 +303,7 @@ func (c *CDP) SetTargetByID(id string) Action {
 // NewTarget is an action that creates a new Chrome target, and sets it as the
 // active target.
 func (c *CDP) NewTarget(id *string, opts ...client.Option) Action {
-	return ActionFunc(func(ctxt context.Context, h cdp.Handler) error {
+	return ActionFunc(func(ctxt context.Context, h cdp.Executor) error {
 		n, err := c.newTarget(ctxt, opts...)
 		if err != nil {
 			return err
@@ -302,43 +317,16 @@ func (c *CDP) NewTarget(id *string, opts ...client.Option) Action {
 	})
 }
 
-// NewTargetWithURL creates a new Chrome target, sets it as the active target,
-// and then navigates to the specified url.
-//func (c *CDP) NewTargetWithURL(urlstr string, id *string, opts ...client.Option) Action {
-//	return ActionFunc(func(ctxt context.Context, h cdp.Handler) error {
-//		n, err := c.newTarget(ctxt, opts...)
-//		if err != nil {
-//			return err
-//		}
-//
-//		l := c.GetHandlerByID(n)
-//		if l == nil {
-//			return errors.New("could not retrieve newly created target")
-//		}
-//
-//		/*err = Navigate(l, urlstr).Do(ctxt)
-//		if err != nil {
-//			return err
-//		}
-//
-//		if id != nil {
-//			*id = n
-//		}*/
-//
-//		return nil
-//	})
-//}
-
 // CloseByIndex closes the Chrome target with specified index i.
 func (c *CDP) CloseByIndex(i int) Action {
-	return ActionFunc(func(ctxt context.Context, h cdp.Handler) error {
+	return ActionFunc(func(ctxt context.Context, h cdp.Executor) error {
 		return nil
 	})
 }
 
 // CloseByID closes the Chrome target with the specified id.
 func (c *CDP) CloseByID(id string) Action {
-	return ActionFunc(func(ctxt context.Context, h cdp.Handler) error {
+	return ActionFunc(func(ctxt context.Context, h cdp.Executor) error {
 		return nil
 	})
 }
@@ -353,7 +341,7 @@ func (c *CDP) Run(ctxt context.Context, a Action) error {
 	return a.Do(ctxt, cur)
 }
 
-// Option is a Chrome Debugging Protocol option.
+// Option is a Chrome DevTools Protocol option.
 type Option func(*CDP) error
 
 // WithRunner is a CDP option to specify the underlying Chrome runner to
@@ -374,6 +362,20 @@ func WithTargets(watch <-chan client.Target) Option {
 	}
 }
 
+// WithClient is a CDP option to use the incoming targets from a client.
+func WithClient(ctxt context.Context, cl *client.Client) Option {
+	return func(c *CDP) error {
+		return WithTargets(cl.WatchPageTargets(ctxt))(c)
+	}
+}
+
+// WithURL is a CDP option to use a client with the specified URL.
+func WithURL(ctxt context.Context, urlstr string) Option {
+	return func(c *CDP) error {
+		return WithClient(ctxt, client.New(client.URL(urlstr)))(c)
+	}
+}
+
 // WithRunnerOptions is a CDP option to specify the options to pass to a newly
 // created Chrome process runner.
 func WithRunnerOptions(opts ...runner.CommandLineOption) Option {
@@ -383,11 +385,8 @@ func WithRunnerOptions(opts ...runner.CommandLineOption) Option {
 	}
 }
 
-// LogFunc is the common logging func type.
-type LogFunc func(string, ...interface{})
-
 // WithLogf is a CDP option to specify a func to receive general logging.
-func WithLogf(f LogFunc) Option {
+func WithLogf(f func(string, ...interface{})) Option {
 	return func(c *CDP) error {
 		c.logf = f
 		return nil
@@ -396,7 +395,7 @@ func WithLogf(f LogFunc) Option {
 
 // WithDebugf is a CDP option to specify a func to receive debug logging (ie,
 // protocol information).
-func WithDebugf(f LogFunc) Option {
+func WithDebugf(f func(string, ...interface{})) Option {
 	return func(c *CDP) error {
 		c.debugf = f
 		return nil
@@ -404,20 +403,18 @@ func WithDebugf(f LogFunc) Option {
 }
 
 // WithErrorf is a CDP option to specify a func to receive error logging.
-func WithErrorf(f LogFunc) Option {
+func WithErrorf(f func(string, ...interface{})) Option {
 	return func(c *CDP) error {
-		c.errorf = f
+		c.errf = f
 		return nil
 	}
 }
 
 // WithLog is a CDP option that sets the logging, debugging, and error funcs to
 // f.
-func WithLog(f LogFunc) Option {
+func WithLog(f func(string, ...interface{})) Option {
 	return func(c *CDP) error {
-		c.logf = f
-		c.debugf = f
-		c.errorf = f
+		c.logf, c.debugf, c.errf = f, f, f
 		return nil
 	}
 }
@@ -425,8 +422,14 @@ func WithLog(f LogFunc) Option {
 // WithConsolef is a CDP option to specify a func to receive chrome log events.
 //
 // Note: NOT YET IMPLEMENTED.
-func WithConsolef(f LogFunc) Option {
+func WithConsolef(f func(string, ...interface{})) Option {
 	return func(c *CDP) error {
 		return nil
 	}
 }
+
+var (
+	// defaultNewTargetTimeout is the default target timeout -- used by
+	// testing.
+	defaultNewTargetTimeout = DefaultNewTargetTimeout
+)
